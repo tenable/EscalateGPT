@@ -1,6 +1,6 @@
 import argparse
 from collections import defaultdict
-
+from botocore.exceptions import ClientError
 import boto3
 import openai
 import json
@@ -9,66 +9,62 @@ import re
 
 def get_policies(aws_access_key_id: str = None, aws_secret_access_key: str = None):
     data = defaultdict(lambda: {"Policy": []})
-    if aws_secret and aws_key:
-        iam = boto3.client('iam', aws_access_key_id=aws_access_key_id, aws_secret_access_key=aws_secret_access_key)
-    else:
-        iam = boto3.client('iam')
-    res = iam.get_account_authorization_details()
-    account_id = iam.get_user()["User"]["Arn"].split("::")[1].split(":")[0]
-    print(f"Get all policy from account {account_id}")
-    for user in res['UserDetailList']:
-        arn = user["Arn"]
-        if user['AttachedManagedPolicies']:
-            for policy in user['AttachedManagedPolicies']:
+    try:
+        if aws_access_key_id and aws_secret_access_key:
+            iam = boto3.client('iam', aws_access_key_id=aws_access_key_id, aws_secret_access_key=aws_secret_access_key)
+        else:
+            iam = boto3.client('iam')
+        res = iam.get_account_authorization_details()
+        account_id = iam.get_user()["User"]["Arn"].split("::")[1].split(":")[0]
+        print(f"Get all policy from account {account_id}")
+        for user in res['UserDetailList']:
+            arn = user["Arn"]
+            try:
+                policies = user['AttachedManagedPolicies']
+            except KeyError:
+                policies = []
+            for policy in policies:
                 policy_arn = policy["PolicyArn"]
-                if re.match(r"arn:aws:iam::\d+:policy/.*", policy_arn):
-                    policy_version = iam.get_policy(PolicyArn=policy_arn)['Policy']['DefaultVersionId']
-                    policy_document = \
-                    iam.get_policy_version(PolicyArn=policy_arn, VersionId=policy_version)["PolicyVersion"]["Document"]
-                    data[arn]["Policy"].append({policy_arn: policy_document["Statement"]})
-                else:
-                    data[arn]["Policy"].append({policy_arn: policy_arn})
+                try:
+                    if re.match(r"arn:aws:iam::\d+:policy/.*", policy_arn):
+                        policy_version = iam.get_policy(PolicyArn=policy_arn)['Policy']['DefaultVersionId']
+                        policy_document = \
+                            iam.get_policy_version(PolicyArn=policy_arn, VersionId=policy_version)["PolicyVersion"][
+                                "Document"]
+                        data[arn]["Policy"].append({policy_arn: policy_document["Statement"]})
+                    else:
+                        data[arn]["Policy"].append({policy_arn: policy_arn})
+                except ClientError as e:
+                    print(f"Error while processing policy {policy_arn}: {str(e)}")
+                except Exception as e:
+                    print(f"Unexpected error while processing policy {policy_arn}: {str(e)}")
+    except ClientError as e:
+        print(f"Error while connecting to AWS: {str(e)}")
+    except Exception as e:
+        print(f"Unexpected error while connecting to AWS: {str(e)}")
     return data
 
 
 def ask_chat_gpt(prompt, model):
-    completion = openai.ChatCompletion.create(
-        model=model,
-        messages=[{"role": "system", "content": """List all users that can gain access to another's account (
-        privilege escalation) based on the policies provided above. You can think of ways that users can perform 
-        actions after they gain access to another user and not only directly. 
-        Write the response in paths ways and in case of *, show only one path indicating *.
-        The path format is: "[SourceUserName]-[PolicyAction]->[TargetUserName]" 
-        Include a description why this path is possible (risk) and how to fix (mitigation) it. 
-        Please output as a JSON format as followed: {["path": path, "policy": PolicyAction, "risk": risk, "mitigation": mitigation]}
-        Policies:
-        """ + json.dumps(prompt)}])
-    message = json.loads(completion.get('choices')[0].get('message').get('content').replace("\n\n", ""))
-    print(json.dumps(message, indent=4))
-
-
-# def ask_chat_gpt_demo(model):
-#     prompt = """{"userArn": "arn:aws:iam::832970976958:user/yossi",
-#             "policy": [{"name": admin_policy","Statement":[{"Effect":"Allow","Action":"*","Resource":"*"}]}],
-#             "userArn":"arn:aws:iam::832970976958:user/shay",
-#             "policy": [{"name": password_change_policy", "Effect":"Allow","Action":["iam:ChangePassword","iam:UpdateLoginProfile"],"Resource":"arn:aws:iam::832970976958:user/yossi"}]
-#             "userArn":"arn:aws:iam::832970976958:user/matan",
-#             "policy": [{"name": create_key_policy","Effect":"Allow","Action":["iam:CreateAccessKey"],"Resource":"arn:aws:iam::832970976958:user/shay"}]
-#             "userArn":"arn:aws:iam::832970976958:user/tal",
-#             "policy": [{"name": AttachRolePolicy","Effect":"Allow","Action":["iam:AttachRolePolicy"],"Resource":"*"}{"Effect":"Allow","Action":["iam:AttachRolePolicy"],"Resource":"*"}"""
-#     completion = openai.ChatCompletion.create(
-#         model=model,
-#         messages=[{"role": "system", "content": """List all users that can gain access to another's account (
-#         privilege escalation) based on the policies provided above. You can think of ways that users can perform
-#         actions after they gain access to another user and not only directly.
-#         Write the response in paths ways and in case of *, show only one path indicating *.
-#         The path format is: "[SourceUserName]-[PolicyAction]->[TargetUserName]"
-#         Include a description why this path is possible (risk) and how to fix (mitigation) it.
-#         Please output as a JSON format as followed: {["path": path, "policy": user[Policy][0], "risk": risk, "mitigation": mitigation]}
-#         Policies:
-#         """ + prompt}])
-#     message = json.loads(completion.get('choices')[0].get('message').get('content').replace("\n\n", ""))
-#     print(json.dumps(message, indent=4))
+    try:
+        completion = openai.ChatCompletion.create(
+            model=model,
+            messages=[{"role": "system", "content": """List all users that can gain access to another's account (
+            privilege escalation) based on the policies provided below. You can think of ways that users can perform 
+            actions after they gain access to another user and not only directly. 
+            Write the response in paths ways and in case of *, show only one path indicating *.
+            The path format is: "[SourceUserName]-[PolicyAction]->[TargetUserName]" 
+            Include a description why this path is possible (risk) and how to fix (mitigation) it. 
+            Please output as a JSON format as followed: {["path": path, "policy": PolicyAction, "risk": risk, "mitigation": mitigation]}
+            Policies:
+            """ + json.dumps(prompt)}])
+        message = json.loads(completion.get('choices')[0].get('message').get('content').replace("\n\n", ""))
+        print(json.dumps(message, indent=4))
+    except openai.error.AuthenticationError as e:
+        print("OpenAI API Key is invalid. Please check for a new key")
+        return
+    except Exception as e:
+        print(f"Unexpected error while try to get OpenAI answer\n {e}")
 
 
 if __name__ == '__main__':
@@ -83,7 +79,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='AWS privilege escalation tool using ChatGPT')
     parser.add_argument('-aws_key', type=str, help='AWS access key', required=False)
     parser.add_argument('-aws_secret', type=str, help='AWS secret key', required=False)
-    parser.add_argument('-openai_key', type=str, help='API Key for OpenAI')
+    parser.add_argument('-openai_key', type=str, help='API Key for OpenAI', required=True)
     parser.add_argument('--chatgpt_model', type=str, default='gpt-4', help='ChatGPT model version')
     args = parser.parse_args()
 
