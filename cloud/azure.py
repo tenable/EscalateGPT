@@ -1,9 +1,8 @@
 import requests
+from adal import AuthenticationContext, AdalError
 
 from cloud.cloud import Cloud
-from static.my_logger import MyLogger
-from static.static import RESOURCE, LOGIN_URL, CLIENT_ID, USERS_URL, USER_MEMBER_OF, GROUPS_URL, AZURE_URLS
-from adal import AuthenticationContext, AdalError
+from static.static import RESOURCE, LOGIN_URL, CLIENT_ID, AZURE_URLS
 
 
 class Azure(Cloud):
@@ -44,6 +43,7 @@ class Azure(Cloud):
     def start(self):
         data_to_collect = ["users", "groups"]
         res = {}
+        self.logger.debug(f"Collecting user and groups from AzureAD")
         for entity_name in data_to_collect:
             res[entity_name] = []
             for entity in self._get_entities(entity_name):
@@ -54,44 +54,16 @@ class Azure(Cloud):
                         groups_and_roles.append({"RoleName": data['displayName'], 'Description': data['description'],
                                                  'RoleTemplateId': data['roleTemplateId']})
                     else:
-                        groups_and_roles.append({"GroupName": data['displayName'], 'description': data['description']})
-                res[entity_name].append({entity.get('userPrincipalName') if entity.get('userPrincipalName') else entity.get('displayName'): groups_and_roles})
+                        groups_and_roles.append({"GroupName": data['displayName'], 'description': data['description'],
+                                                 "owners": self._get_group_owners(group_id=entity['id'])})
+                res[entity_name].append({entity.get('userPrincipalName') if entity.get(
+                    'userPrincipalName') else entity.get('displayName'): groups_and_roles})
         return res
-
-        # groups = []
-        # users_data = {}
-        # users = self._get_all_users()
-        # for user in users:
-        #     user_data = self._get_user_data(user['id'])
-        #     groups_and_roles = []
-        #     for data in user_data:
-        #         if data['@odata.type'] == '#microsoft.graph.directoryRole':
-        #             groups_and_roles.append({"RoleName": data['displayName'], 'Description': data['description'],
-        #                                      'RoleTemplateId': data['roleTemplateId']})
-        #         else:
-        #             groups_and_roles.append({"GroupName": data['displayName'], 'description': data['description']})
-        #             groups.append(data['id'])
-        #     users_data[user['userPrincipalName']] = groups_and_roles
-        # return users_data
-
-    def _get_all_users(self):
-        res = requests.get(USERS_URL, headers=self._graph_headers).json()
-        if "error" in res:
-            self.logger.error(f"Failed to get users\nerror {res['error']['message']}")
-            return {}
-        return res['value']
 
     def _get_entities(self, entity):
         res = requests.get(AZURE_URLS[entity], headers=self._graph_headers).json()
         if "error" in res:
             self.logger.error(f"Failed to get {entity}\nerror {res['error']['message']}")
-            return {}
-        return res['value']
-
-    def _get_user_data(self, user_id: str):
-        res = requests.get(USER_MEMBER_OF.format(user_id), headers=self._graph_headers).json()
-        if "error" in res:
-            self.logger.error(f"Failed to get sp\nerror {res['error']['message']}")
             return {}
         return res['value']
 
@@ -101,3 +73,14 @@ class Azure(Cloud):
             self.logger.error(f"Failed to get {entity} member_of \nerror {res['error']['message']}")
             return {}
         return res['value']
+
+    def _get_group_owners(self, group_id: str):
+        list_owners = []
+        res = requests.get(AZURE_URLS['groups_owners'].format(group_id), headers=self._graph_headers).json()
+        if "error" in res:
+            self.logger.error(f"Failed to get owners to group {group_id}\nerror {res['error']['message']}")
+            return {}
+        for x in res['value']:
+            if "user" in x["@odata.type"]:
+                list_owners.append(x['userPrincipalName'])
+        return list_owners

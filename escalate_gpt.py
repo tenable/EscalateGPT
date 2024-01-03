@@ -1,6 +1,7 @@
 import argparse
 import json
 
+from cloud.aws import AWS
 from cloud.azure import Azure
 from gpt_client.gpt_client import GPTClient
 from static.static import AZURE_PROMPT
@@ -35,22 +36,18 @@ def parse_args():
 
 def main():
     args = parse_args()
-    azure = Azure(username=args.username, password=args.password, tenant_id=args.tenant_id)
+    if args.platform == "AZURE":
+        client = Azure(username=args.username, password=args.password, tenant_id=args.tenant_id)
+    else:
+        client = AWS(args=args)
     openai = GPTClient(openai_key=args.OpenAPIKey, model=args.model, temperature=args.temperature)
-    data = azure.start()
-    res = openai.ask(AZURE_PROMPT.format(json.dumps(data)))
-    print(res)
+    data = client.start()
+    client.logger.debug("Finish to get all data send to OPENAI for analyze")
+    res = openai.ask(AZURE_PROMPT.format(json.dumps(data['users']), json.dumps(data['groups'])))
+    client.logger.debug(res)
 
 
 if __name__ == '__main__':
-    print("""    #    #     #  #####                                 #####  ######  ####### 
-   # #   #  #  # #     #     ####  #    #   ##   ##### #     # #     #    #    
-  #   #  #  #  # #          #    # #    #  #  #    #   #       #     #    #    
- #     # #  #  #  #####     #      ###### #    #   #   #  #### ######     #    
- ####### #  #  #       #    #      #    # ######   #   #     # #          #    
- #     # #  #  # #     #    #    # #    # #    #   #   #     # #          #    
- #     #  ## ##   #####      ####  #    # #    #   #    #####  #          #    
-                                                                               """)
     main()
 
 
