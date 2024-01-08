@@ -1,8 +1,25 @@
+from dataclasses import dataclass
+from typing import Optional, List
+
 import requests
 from adal import AuthenticationContext, AdalError
 
 from cloud.cloud import Cloud
 from const.const import RESOURCE, LOGIN_URL, CLIENT_ID, AZURE_URLS, AZURE_DATA_TO_COLLECT
+
+
+@dataclass
+class Role:
+    role_name: Optional[str] = None
+    description: Optional[str] = None
+    role_template_id: Optional[str] = None
+
+
+@dataclass
+class Group:
+    group_name: Optional[str] = None
+    description: Optional[str] = None
+    owners: Optional[List[str]] = None
 
 
 class Azure(Cloud):
@@ -44,32 +61,68 @@ class Azure(Cloud):
             raise ValueError(f"Unexpected error while authenticating to 'Azure AD'\n{e}")
 
     def start(self):
-        res = {}
-        self.logger.debug(f"Collecting user and groups from AzureAD")
-        for entity_name in AZURE_DATA_TO_COLLECT:
-            res[entity_name] = []
-            for entity in self._get_entities(entity_name):
+        data_for_open_ai = {}
+        self.logger.debug(f"Start to collect user and groups from AzureAD")
+        for data_type in AZURE_DATA_TO_COLLECT:
+            data_for_open_ai[data_type] = {}
+            for entity in self._get_entities_details(data_type):
                 groups_and_roles = []
-                entity_data = self._get_entity_data(entity_name, entity['id'])
-                for data in entity_data:
-                    if data['@odata.type'] == '#microsoft.graph.directoryRole':
-                        groups_and_roles.append({"RoleName": data['displayName'], 'Description': data['description'],
-                                                 'RoleTemplateId': data['roleTemplateId']})
+                entity_members_group_and_roles = self._get_entity_member_of(data_type, entity['id'])
+                for group_or_role in entity_members_group_and_roles:
+                    if group_or_role['@odata.type'] == '#microsoft.graph.directoryRole':
+                        groups_and_roles.append(
+                            Role(role_name=group_or_role['displayName'], description=group_or_role['description'],
+                                 role_template_id=group_or_role['roleTemplateId']).__dict__)
                     else:
-                        groups_and_roles.append({"GroupName": data['displayName'], 'description': data['description'],
-                                                 "owners": self._get_group_owners(group_id=entity['id'])})
-                res[entity_name].append({entity.get('userPrincipalName') if entity.get(
-                    'userPrincipalName') else entity.get('displayName'): groups_and_roles})
-        return res
+                        groups_and_roles.append(
+                            Group(group_name=group_or_role['displayName'], description=group_or_role['description'],
+                                  owners=self._get_group_owners(group_id=entity['id'])).__dict__)
+                entity_name = entity.get('userPrincipalName') if entity.get(
+                    'userPrincipalName') else entity.get('displayName')
+                data_for_open_ai[data_type][entity_name] = groups_and_roles
+        return data_for_open_ai
 
-    def _get_entities(self, entity):
+    # def start(self):
+    #     res = {}
+    #     self.logger.debug(f"Collecting user and groups from AzureAD")
+    #     for entity_name in AZURE_DATA_TO_COLLECT:
+    #         res[entity_name] = []
+    #         for entity in self._get_entities(entity_name):
+    #             groups_and_roles = []
+    #             entity_data = self._get_entity_data(entity_name, entity['id'])
+    #             for data in entity_data:
+    #                 if data['@odata.type'] == '#microsoft.graph.directoryRole':
+    #                     groups_and_roles.append({"RoleName": data['displayName'], 'Description': data['description'],
+    #                                              'RoleTemplateId': data['roleTemplateId']})
+    #                 else:
+    #                     groups_and_roles.append({"GroupName": data['displayName'], 'description': data['description'],
+    #                                              "owners": self._get_group_owners(group_id=entity['id'])})
+    #             res[entity_name].append({entity.get('userPrincipalName') if entity.get(
+    #                 'userPrincipalName') else entity.get('displayName'): groups_and_roles})
+    #     return res
+
+    # def _get_entities(self, entity):
+    #     res = requests.get(AZURE_URLS[entity], headers=self._graph_headers).json()
+    #     if "error" in res:
+    #         self.logger.error(f"Failed to get {entity}\nerror {res['error']['message']}")
+    #         return {}
+    #     return res['value']
+
+    def _get_entities_details(self, entity):
         res = requests.get(AZURE_URLS[entity], headers=self._graph_headers).json()
         if "error" in res:
             self.logger.error(f"Failed to get {entity}\nerror {res['error']['message']}")
             return {}
         return res['value']
 
-    def _get_entity_data(self, entity: str, user_id: str):
+    # def _get_entity_data(self, entity: str, user_id: str):
+    #     res = requests.get(AZURE_URLS['member_of'].format(entity, user_id), headers=self._graph_headers).json()
+    #     if "error" in res:
+    #         self.logger.error(f"Failed to get {entity} member_of \nerror {res['error']['message']}")
+    #         return {}
+    #     return res['value']
+
+    def _get_entity_member_of(self, entity: str, user_id: str):
         res = requests.get(AZURE_URLS['member_of'].format(entity, user_id), headers=self._graph_headers).json()
         if "error" in res:
             self.logger.error(f"Failed to get {entity} member_of \nerror {res['error']['message']}")
