@@ -6,26 +6,33 @@ AZURE_URLS = {"users": "https://graph.microsoft.com/beta/users",
 LOGIN_URL = "https://login.microsoftonline.com/{}"
 RESOURCE = "https://graph.microsoft.com"
 CLIENT_ID = "04b07795-8ddb-461a-bbee-02f9e1bf7b46"
+AZURE_DATA_TO_COLLECT = ["users", "groups"]
+
 
 AZURE_PROMPT = """
-List all Azure users that can gain access to another Azure user's permissions (privilege escalation) based on the JSON data below. Provide output in the following JSON format:
-  "paths": [
-      "path": "[SourceUserName]-[ACTION]->[TargetUserName]",
-      "description": "Explanation of why this escalation is possible", 
-      "mitigation": "Suggestions for preventing this escalation"
+Identify potential privilege escalation paths in an Azure environment based on the given 2 JSON data one for users and one for groups.
+In the user JSON the key is User SPN and the value is where the user is a member of (groups and directory roles)
+In the group JSON the key is the group name and the value is the owners of the group
+Generate output in the specified JSON format:
+"paths": 
+{{
+[
+        "path": "[SourceUserName]-[ACTION (The action the source can do to get to the target)]->[TargetUserName]",
+        "description": "Explanation of why this escalation is possible",
+        "mitigation": "Suggestions for preventing this escalation",
+        "all_users": "If we have others users with the same permission write here there SPN"
     ...
-  ]
+]
+}}
+When analyzing privilege escalation paths:
+- Consider both direct escalations and potential indirect multi-step attacks
+- Aggregate users with identical escalation capabilities
+- Offer technically accurate and detailed explanations
+- Propose practical mitigation measures
+Your output should be only the JSON
 
-When identifying privilege escalation paths:
-- Consider both direct escalations and indirect multi-step attacks 
-- Combine users with identical escalation capabilities  
-- Provide technically accurate and detailed explanations
-- Suggest practical mitigation measures 
-
-User data JSON:
-{}
-Group owner data JSON: 
-{}
+User data JSON: {}
+Group owner data JSON: {}
 """
 
 AWS_PROMPT = """List all users that can gain access to another's account (

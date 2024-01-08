@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 
-from static.my_logger import MyLogger
+from const.my_logger import MyLogger
 
 
 class Cloud(ABC):

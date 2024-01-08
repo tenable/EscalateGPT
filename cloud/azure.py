@@ -2,7 +2,7 @@ import requests
 from adal import AuthenticationContext, AdalError
 
 from cloud.cloud import Cloud
-from static.static import RESOURCE, LOGIN_URL, CLIENT_ID, AZURE_URLS
+from const.const import RESOURCE, LOGIN_URL, CLIENT_ID, AZURE_URLS, AZURE_DATA_TO_COLLECT
 
 
 class Azure(Cloud):
@@ -31,20 +31,22 @@ class Azure(Cloud):
             return auth_context.acquire_token_with_username_password(RESOURCE, self.username, self.password,
                                                                      CLIENT_ID).get('accessToken')
         except AdalError as e:
-            if "AADSTS50126" in e.error_response['error_description']:
-                raise ValueError("Error validating credentials due to invalid username or password.")
-            elif "AADSTS50055" in e.error_response['error_description']:
-                raise ValueError("The password of the user is expired.")
-            elif "AADSTS50057" in e.error_response['error_description']:
-                raise ValueError("The user account is disabled.")
+            if e.error_response:
+                if "AADSTS50126" in e.error_response['error_description']:
+                    raise ValueError("Error validating credentials due to invalid username or password.")
+                elif "AADSTS50055" in e.error_response['error_description']:
+                    raise ValueError("The password of the user is expired.")
+                elif "AADSTS50057" in e.error_response['error_description']:
+                    raise ValueError("The user account is disabled.")
+            else:
+                raise ValueError(f"Error while try connect to AZURE {e}")
         except Exception as e:
             raise ValueError(f"Unexpected error while authenticating to 'Azure AD'\n{e}")
 
     def start(self):
-        data_to_collect = ["users", "groups"]
         res = {}
         self.logger.debug(f"Collecting user and groups from AzureAD")
-        for entity_name in data_to_collect:
+        for entity_name in AZURE_DATA_TO_COLLECT:
             res[entity_name] = []
             for entity in self._get_entities(entity_name):
                 groups_and_roles = []

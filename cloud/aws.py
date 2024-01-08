@@ -55,7 +55,11 @@ class AWS(Cloud):
         data = defaultdict(lambda: {"Policy": []})
         try:
             res = self.client.get_account_authorization_details()
-            account_id = self.client.get_user()["User"]["Arn"].split("::")[1].split(":")[0]
+            try:
+                account_id = self.client.get_user()["User"]["Arn"].split("::")[1].split(":")[0]
+            except Exception as e:
+                self.logger.error(f"Error while try get account_id {e}")
+                account_id = ""
             self.logger.debug(f"Get all policy from account {account_id}")
             for user in res['UserDetailList']:
                 arn = user["Arn"]
@@ -67,12 +71,7 @@ class AWS(Cloud):
                     policy_arn = policy["PolicyArn"]
                     try:
                         if re.match(r"arn:aws:iam::\d+:policy/.*", policy_arn):
-                            policy_version = self.client.get_policy(PolicyArn=policy_arn)['Policy']['DefaultVersionId']
-                            policy_document = \
-                                self.client.get_policy_version(PolicyArn=policy_arn, VersionId=policy_version)[
-                                    "PolicyVersion"][
-                                    "Document"]
-                            data[arn]["Policy"].append({policy_arn: policy_document["Statement"]})
+                            self._extract_policy_data(arn, data, policy_arn)
                         else:
                             data[arn]["Policy"].append({policy_arn: policy_arn})
                     except ClientError as e:
@@ -84,3 +83,11 @@ class AWS(Cloud):
         except Exception as e:
             self.logger.error(f"Unexpected error while connecting to AWS: {str(e)}")
         return data
+
+    def _extract_policy_data(self, arn, data, policy_arn):
+        policy_version = self.client.get_policy(PolicyArn=policy_arn)['Policy']['DefaultVersionId']
+        policy_document = \
+            self.client.get_policy_version(PolicyArn=policy_arn, VersionId=policy_version)[
+                "PolicyVersion"][
+                "Document"]
+        data[arn]["Policy"].append({policy_arn: policy_document["Statement"]})

@@ -4,7 +4,7 @@ import json
 from cloud.aws import AWS
 from cloud.azure import Azure
 from gpt_client.gpt_client import GPTClient
-from static.static import AZURE_PROMPT
+from const.const import AZURE_PROMPT
 
 
 def parse_args():
@@ -22,14 +22,14 @@ def parse_args():
 
     # Platform-specific arguments
     aws_group = parser.add_argument_group("AWS Options")
-    aws_group.add_argument("--aws-key", type=str, help="AWS Key")
-    aws_group.add_argument("--aws-secret", type=str, help="AWS Secret")
-    aws_group.add_argument('--profile', help='AWS CLI profile name')
+    aws_group.add_argument("-k", "--aws-key", type=str, help="AWS Key")
+    aws_group.add_argument("-s", "--aws-secret", type=str, help="AWS Secret")
+    aws_group.add_argument("-P", "--profile", help='AWS CLI profile name')
 
     azure_group = parser.add_argument_group("Azure Options")
-    azure_group.add_argument("--username", type=str, help="Azure Username")
-    azure_group.add_argument("--password", type=str, help="Azure Password")
-    azure_group.add_argument("--tenant-id", type=str, help="Azure Tenant ID")
+    azure_group.add_argument("-u", "--username", type=str, help="Azure Username")
+    azure_group.add_argument("-p", "--password", type=str, help="Azure Password")
+    azure_group.add_argument("-t", "--tenant-id", type=str, help="Azure Tenant ID")
 
     return parser.parse_args()
 
