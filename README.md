@@ -33,13 +33,13 @@ pip install -r requirements.txt
 ```
 ## Usage
 
+### AWS
 ```sh
-AWS
 python openapi_script.py YOUR_OPENAPI_KEY --platform AWS --aws-key YOUR_AWS_KEY --aws-secret YOUR_AWS_SECRET
-
-Azure
+```
+### Azure
+```sh
 python openapi_script.py YOUR_OPENAPI_KEY --platform AZURE --username YOUR_AZURE_USERNAME --password YOUR_AZURE_PASSWORD --tenant-id YOUR_AZURE_TENANT_ID
-
 ```
 
 ## Contributing
