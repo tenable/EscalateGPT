@@ -6,11 +6,9 @@ AZURE_URLS = {"users": "https://graph.microsoft.com/beta/users",
 LOGIN_URL = "https://login.microsoftonline.com/{}"
 RESOURCE = "https://graph.microsoft.com"
 CLIENT_ID = "04b07795-8ddb-461a-bbee-02f9e1bf7b46"
-AZURE_DATA_TO_COLLECT = ["users", "groups"]
+AZURE_ENTITIES_TO_COLLECT = ["users", "groups"]
 
-
-AZURE_PROMPT = """
-Identify potential privilege escalation paths in an Azure environment based on the given 2 JSON data one for users and one for groups.
+PROMPTS = {"AZURE": """Identify potential privilege escalation paths in an Azure environment based on the given 2 JSON data one for users and one for groups.
 In the user JSON the key is User SPN and the value is where the user is a member of (groups and directory roles)
 In the group JSON the key is the group name and the value is the owners of the group
 Generate output in the specified JSON format:
@@ -30,16 +28,15 @@ When analyzing privilege escalation paths:
 - Offer technically accurate and detailed explanations
 - Propose practical mitigation measures
 Your output should be only the JSON
-
 User data JSON: {}
 Group owner data JSON: {}
-"""
-
-AWS_PROMPT = """List all users that can gain access to another's account (
-            privilege escalation) based on the policies provided below. You can think of ways that users can perform 
-            actions after they gain access to another user and not only directly. 
-            Write the response in paths ways and in case of *, show only one path indicating *.
-            The path format is: "[SourceUserName]-[PolicyAction]->[TargetUserName]" 
-            Include a description why this path is possible (risk) and how to fix (mitigation) it. 
-            Please output as a JSON format as followed: {["path": path, "policy": PolicyAction, "risk": risk, "mitigation": mitigation]}
-            Policies:\n"""
+""",
+           "AWS":
+               """List all users that can gain access to another's account (
+                       privilege escalation) based on the policies provided below. You can think of ways that users can perform 
+                       actions after they gain access to another user and not only directly. 
+                       Write the response in paths ways and in case of *, show only one path indicating *.
+                       The path format is: "[SourceUserName]-[PolicyAction]->[TargetUserName]" 
+                       Include a description why this path is possible (risk) and how to fix (mitigation) it. 
+                       Please output as a JSON format as followed: {{["path": path, "policy": PolicyAction, "risk": risk, "mitigation": mitigation, "all_users": "If we have others users with the same permission write here there name"]}}
+                       Policies:\n{}"""}
