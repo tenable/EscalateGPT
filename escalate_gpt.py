@@ -40,7 +40,7 @@ def main():
         client = AWS(args=args)
     openai = GPTClient(openai_key=args.OpenAPIKey, model=args.model, temperature=args.temperature)
     prompt = client.start()
-    client.logger.debug("Finish to get all data send to OPENAI for analyze")
+    client.logger.debug("All the data we need for analysis has been collected and will be sent to OpenAI for analysis.")
     openai_answer = openai.ask(prompt)
     client.logger.debug(openai_answer)
 

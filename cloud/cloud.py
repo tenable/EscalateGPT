@@ -8,9 +8,10 @@ class Cloud(ABC):
         self.logger = MyLogger(__name__)
         pass
 
-    def _connect(self):
+    @abstractmethod
+    def _connect(self, **kwargs):
         pass
 
     @abstractmethod
-    def start(self):
+    def start(self) -> str:
         pass

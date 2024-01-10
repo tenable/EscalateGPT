@@ -32,11 +32,9 @@ User data JSON: {}
 Group owner data JSON: {}
 """,
            "AWS":
-               """List all users that can gain access to another's account (
-                       privilege escalation) based on the policies provided below. You can think of ways that users can perform 
-                       actions after they gain access to another user and not only directly. 
-                       Write the response in paths ways and in case of *, show only one path indicating *.
-                       The path format is: "[SourceUserName]-[PolicyAction]->[TargetUserName]" 
-                       Include a description why this path is possible (risk) and how to fix (mitigation) it. 
-                       Please output as a JSON format as followed: {{["path": path, "policy": PolicyAction, "risk": risk, "mitigation": mitigation, "all_users": "If we have others users with the same permission write here there name"]}}
-                       Policies:\n{}"""}
+"""Identify potential privilege escalation paths based on the provided policies. List users who can gain unauthorized access to another's account, considering actions beyond direct access. Present the findings in JSON format, including paths, policy actions, associated risks, mitigations, and identify users with similar permissions.
+Prompt Format:
+List all privilege escalation paths as JSON objects, following the format:
+{{"path": "[SourceUserName]-[PolicyAction]->[TargetUserName]", "policy": "PolicyAction", "risk": "Explain the risk associated with the path", "mitigation": "Provide mitigation steps to address the risk", "all_users": "List other users with similar permissions"}}
+
+Policies:\n{}"""}

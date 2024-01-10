@@ -32,15 +32,22 @@ class Azure(Cloud):
         self._graph_headers = {"Authorization": f"Bearer {self._connect()}",
                                "Content-Type": "application/json"}
 
-    def _connect(self):
+    def _connect(self, **kwargs) -> str:
         """
-            Retrieves an access token for the specified resource using the provided username and password.
-            Args:
-                resource (str, optional): The resource for which to acquire the access token. Defaults to "https://graph.microsoft.com".
-            Returns:
-                str: The access token.
+            Establishes a connection to Azure Active Directory (Azure AD) and retrieves an access token.
+
+            This method uses the provided Azure AD credentials (username, password) to authenticate and acquire
+            an access token for the specified resource. It handles common Azure AD error responses and raises
+            specific ValueErrors with meaningful messages.
+            @return: Access token for the specified resource in Azure AD.
+            @rtype: str
+
             Raises:
-                ValueError: If there is an error validating the credentials or an unexpected error occurs while authenticating.
+            - ValueError: If authentication fails due to invalid credentials, expired password, or disabled account.
+            - ValueError: If an unexpected error occurs during the authentication process.
+
+            Example usage:
+                access_token = _connect(username='your_username', password='your_password')
             """
         self.logger.debug(
             f"Try to establishing connection to resource {RESOURCE} in 'Azure AD'  with user {self.username}")
@@ -63,10 +70,14 @@ class Azure(Cloud):
 
     def start(self) -> str:
         """
-        The function collect all users and the groups and roles they are memebers of.
-        @return: Prompt we want to send to OPEN_AI
-        @rtype: str
-        """
+         Collects information about users, groups, and roles in Azure Active Directory for generating a prompt.
+         This method gathers details about all users and the groups and roles they are members of in Azure Active Directory.
+         It constructs a dictionary containing user information, along with the groups and roles each user is a member of.
+         The generated prompt is formatted using the collected data.
+
+         @return: Prompt to be sent to OpenAI containing information about Azure Active Directory entities.
+         @rtype: str
+         """
         data_for_open_ai = {}
         self.logger.debug(f"Start to collect user and groups from AzureAD")
         for entity_type in AZURE_ENTITIES_TO_COLLECT:
@@ -91,12 +102,16 @@ class Azure(Cloud):
 
     def _get_entities_details(self, entity: str) -> dict:
         """
-        Function send request to get data about the users/groups
-        @param entity: can be users or groups
-        @type entity:  str
-        @return: dict with data on users/groups
-        @rtype: dict
-        """
+          Sends a request to retrieve details about users or groups from Azure Active Directory.
+          This method sends an HTTP GET request to the Azure Active Directory Graph API to fetch information
+          about either users or groups. It expects the entity parameter to be 'users' or 'groups'.
+
+          @param entity: The type of entity for which details are to be retrieved ('users' or 'groups').
+          @type entity: str
+
+          @return: A dictionary containing data about the requested users/groups.
+          @rtype: dict
+          """
         res = requests.get(AZURE_URLS[entity], headers=self._graph_headers).json()
         if "error" in res:
             self.logger.error(f"Failed to get {entity}\nerror {res['error']['message']}")
@@ -105,12 +120,17 @@ class Azure(Cloud):
 
     def _get_groups_and_roles_entity_is_member_of(self, entity: str, entity_id: str) -> dict:
         """
-        Function check for all the membership of the user/group
-        @param entity: can be users or groups
+        Checks all the memberships of a user or group in Azure Active Directory.
+        This method sends an HTTP GET request to the Azure Active Directory Graph API to retrieve information
+        about the groups and roles that a user or group with the specified entity ID is a member of.
+
+        @param entity: The type of entity for which memberships are to be checked ('users' or 'groups').
         @type entity: str
-        @param entity_id: the entity id
+
+        @param entity_id: The unique identifier of the entity whose memberships are being checked.
         @type entity_id: str
-        @return: dict with the membership of users/groups
+
+        @return: A dictionary containing data about the memberships of the specified user/group.
         @rtype: dict
         """
         res = requests.get(AZURE_URLS['member_of'].format(entity, entity_id), headers=self._graph_headers).json()
@@ -121,11 +141,16 @@ class Azure(Cloud):
 
     def _get_group_owners(self, group_id: str) -> List[str]:
         """
-        Function check for owners of group
-        @param group_id:  The group id
+        Retrieves the owners of a specified group in Azure Active Directory.
+        This method sends an HTTP GET request to the Azure Active Directory Graph API to fetch information
+        about the owners of the group with the specified group ID. It returns a list of userPrincipalName
+        for each owner.
+
+        @param group_id: The unique identifier of the group whose owners are to be retrieved.
         @type group_id: str
-        @return: List of the owners of the group
-        @rtype: List of userPrincipalName
+
+        @return: List of userPrincipalName for the owners of the group.
+        @rtype: List[str]
         """
         list_owners = []
         res = requests.get(AZURE_URLS['groups_owners'].format(group_id), headers=self._graph_headers).json()
