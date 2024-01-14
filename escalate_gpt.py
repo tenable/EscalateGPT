@@ -6,7 +6,7 @@ from gpt_client.gpt_client import GPTClient
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="Script to do something with OpenAPI")
+    parser = argparse.ArgumentParser(description="EscalateGPT privilege escalation tool for cloud")
 
     # Required arguments
     parser.add_argument("OpenAPIKey", type=str, help="OpenAPI Key")
