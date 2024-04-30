@@ -3,18 +3,19 @@ from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
 
+from ai_client.ai_client import AiClient
 
-class GPTClient:
-    def __init__(self, openai_key: str, model: str, temperature: float):
-        self.openai_key = openai_key
-        self.model = model
+
+class OpenAIClient(AiClient):
+    def __init__(self, model: str, temperature: float, apikey: str):
+        super().__init__(apikey, model, temperature)
         self.temperature = temperature
-        self.llm = ChatOpenAI(openai_api_key=self.openai_key, model_name=self.model, temperature=self.temperature)
+        self.llm = ChatOpenAI(openai_api_key=self.apikey, model_name=self.model, temperature=self.temperature)
 
     def ask(self, user_prompt):
         try:
             prompt = ChatPromptTemplate.from_messages([
-                ("system", "You are world class technical security researcher."),
+                ("system", "You are world class technical writer."),
                 ("user", "{input}")
             ])
             chain = prompt | self.llm | StrOutputParser()

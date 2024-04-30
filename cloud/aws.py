@@ -2,6 +2,7 @@ import os
 import re
 import sys
 import json
+from argparse import Namespace
 from collections import defaultdict
 
 import boto3
@@ -9,12 +10,12 @@ import boto3
 from botocore.exceptions import ClientError
 
 from cloud.cloud import Cloud
-from const.const import PROMPTS
+from const.const import PROMPTS, AWS_PLATFORM
 
 
 class AWS(Cloud):
-    def __init__(self, args):
-        super().__init__()
+    def __init__(self, args: Namespace):
+        super().__init__(args)
         if args.profile:
             self.client = self._connect(profile=args.profile)
         elif args.aws_key and args.aws_secret:
@@ -73,7 +74,7 @@ class AWS(Cloud):
     This function retrieves account authorization details using the AWS IAM client and extracts information
     about Attached Managed Policies for each user. It constructs a dictionary containing policy information
     organized by user and policy ARN. The generated prompt is formatted using the collected data.
-        @return: Prompt we want to send to OPEN_AI
+        @return: Prompt we want to send to LLM
         @rtype: str
         """
         users_policies = defaultdict(lambda: {"Policy": []})
@@ -98,7 +99,7 @@ class AWS(Cloud):
             self.logger.error(f"Error while connecting to AWS: {e}")
         except Exception as e:
             self.logger.error(f"Unexpected error while connecting to AWS: {e}")
-        return PROMPTS['AWS'].format(json.dumps(users_policies))
+        return PROMPTS[AWS_PLATFORM].format(json.dumps(users_policies))
 
     def _get_account_id(self):
         """

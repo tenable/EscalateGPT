@@ -1,4 +1,5 @@
 import json
+from argparse import Namespace
 from dataclasses import dataclass
 from typing import Optional, List
 
@@ -6,7 +7,7 @@ import requests
 from adal import AuthenticationContext, AdalError
 
 from cloud.cloud import Cloud
-from const.const import RESOURCE, LOGIN_URL, CLIENT_ID, AZURE_URLS, AZURE_ENTITIES_TO_COLLECT, PROMPTS
+from const.const import RESOURCE, LOGIN_URL, CLIENT_ID, AZURE_URLS, AZURE_ENTITIES_TO_COLLECT, PROMPTS, AZURE_PLATFORM
 
 
 @dataclass
@@ -24,22 +25,22 @@ class Group:
 
 
 class Azure(Cloud):
-    def __init__(self, username: str, password: str, tenant_id: str):
-        super().__init__()
-        self.username = username
-        self.password = password
-        self.tenant_id = tenant_id
+    def __init__(self, args: Namespace):
+        super().__init__(args)
+        self.username = args.username
+        self.password = args.password
+        self.tenant_id = args.tenant_id
         self._graph_headers = {"Authorization": f"Bearer {self._connect()}",
                                "Content-Type": "application/json"}
 
     def _connect(self, **kwargs) -> str:
         """
-            Establishes a connection to Azure Active Directory (Azure AD) and retrieves an access token.
+            Establishes a connection to Entra ID and retrieves an access token.
 
-            This method uses the provided Azure AD credentials (username, password) to authenticate and acquire
-            an access token for the specified resource. It handles common Azure AD error responses and raises
+            This method uses the provided Entra ID credentials (username, password) to authenticate and acquire
+            an access token for the specified resource. It handles common Entra ID error responses and raises
             specific ValueErrors with meaningful messages.
-            @return: Access token for the specified resource in Azure AD.
+            @return: Access token for the specified resource in Entra ID.
             @rtype: str
 
             Raises:
@@ -50,7 +51,7 @@ class Azure(Cloud):
                 access_token = _connect(username='your_username', password='your_password')
             """
         self.logger.debug(
-            f"Try to establishing connection to resource {RESOURCE} in 'Azure AD'  with user {self.username}")
+            f"Try to establishing connection to resource {RESOURCE} in 'Entra ID'  with user {self.username}")
         try:
             auth_context = AuthenticationContext(LOGIN_URL.format(self.tenant_id))
             return auth_context.acquire_token_with_username_password(RESOURCE, self.username, self.password,
@@ -64,24 +65,24 @@ class Azure(Cloud):
                 elif "AADSTS50057" in e.error_response['error_description']:
                     raise ValueError("The user account is disabled.")
             else:
-                raise ValueError(f"Error while try connect to AZURE {e}")
+                raise ValueError(f"Error while try connect to Entra ID {e}")
         except Exception as e:
-            raise ValueError(f"Unexpected error while authenticating to 'Azure AD'\n{e}")
+            raise ValueError(f"Unexpected error while authenticating to 'Entra ID AD'\n{e}")
 
     def start(self) -> str:
         """
-         Collects information about users, groups, and roles in Azure Active Directory for generating a prompt.
-         This method gathers details about all users and the groups and roles they are members of in Azure Active Directory.
+         Collects information about users, groups, and roles in Entra ID for generating a prompt.
+         This method gathers details about all users and the groups and roles they are members of in Entra ID.
          It constructs a dictionary containing user information, along with the groups and roles each user is a member of.
          The generated prompt is formatted using the collected data.
 
-         @return: Prompt to be sent to OpenAI containing information about Azure Active Directory entities.
+         @return: Prompt to be sent to LLM containing information about Entra ID entities.
          @rtype: str
          """
-        data_for_open_ai = {}
-        self.logger.debug(f"Start to collect user and groups from AzureAD")
+        data_for_llm = {}
+        self.logger.debug(f"Start to collect user and groups from Entra ID")
         for entity_type in AZURE_ENTITIES_TO_COLLECT:
-            data_for_open_ai[entity_type] = {}
+            data_for_llm[entity_type] = {}
             for entity in self._get_entities_details(entity_type):
                 all_groups_and_roles = []
                 entity_group_and_roles = self._get_groups_and_roles_entity_is_member_of(entity_type, entity['id'])
@@ -96,14 +97,14 @@ class Azure(Cloud):
                                   owners=self._get_group_owners(group_id=entity['id'])).__dict__)
                 entity_name = entity.get('userPrincipalName') if entity.get(
                     'userPrincipalName') else entity.get('displayName')
-                data_for_open_ai[entity_type][entity_name] = all_groups_and_roles
-        return PROMPTS["AZURE"].format(json.dumps(data_for_open_ai[AZURE_ENTITIES_TO_COLLECT[0]]),
-                                       json.dumps(data_for_open_ai[AZURE_ENTITIES_TO_COLLECT[1]]))
+                data_for_llm[entity_type][entity_name] = all_groups_and_roles
+        return PROMPTS[AZURE_PLATFORM].format(users=json.dumps(data_for_llm[AZURE_ENTITIES_TO_COLLECT[0]]),
+                                              groups=json.dumps(data_for_llm[AZURE_ENTITIES_TO_COLLECT[1]]))
 
     def _get_entities_details(self, entity: str) -> dict:
         """
-          Sends a request to retrieve details about users or groups from Azure Active Directory.
-          This method sends an HTTP GET request to the Azure Active Directory Graph API to fetch information
+          Sends a request to retrieve details about users or groups from Entra ID.
+          This method sends an HTTP GET request to the Entra ID Graph API to fetch information
           about either users or groups. It expects the entity parameter to be 'users' or 'groups'.
 
           @param entity: The type of entity for which details are to be retrieved ('users' or 'groups').
@@ -120,8 +121,8 @@ class Azure(Cloud):
 
     def _get_groups_and_roles_entity_is_member_of(self, entity: str, entity_id: str) -> dict:
         """
-        Checks all the memberships of a user or group in Azure Active Directory.
-        This method sends an HTTP GET request to the Azure Active Directory Graph API to retrieve information
+        Checks all the memberships of a user or group in  Entra ID.
+        This method sends an HTTP GET request to the Entra ID Graph API to retrieve information
         about the groups and roles that a user or group with the specified entity ID is a member of.
 
         @param entity: The type of entity for which memberships are to be checked ('users' or 'groups').
@@ -141,8 +142,8 @@ class Azure(Cloud):
 
     def _get_group_owners(self, group_id: str) -> List[str]:
         """
-        Retrieves the owners of a specified group in Azure Active Directory.
-        This method sends an HTTP GET request to the Azure Active Directory Graph API to fetch information
+        Retrieves the owners of a specified group in Entra ID.
+        This method sends an HTTP GET request to the Entra ID Graph API to fetch information
         about the owners of the group with the specified group ID. It returns a list of userPrincipalName
         for each owner.
 
