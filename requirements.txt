@@ -2,6 +2,6 @@ boto3~=1.26.123
 openai~=1.6.1
 botocore~=1.29.123
 adal~=1.2.7
-requests~=2.31.0
+requests~=2.32.4
 langchain_openai
 langchain
