@@ -5,3 +5,5 @@ adal~=1.2.7
 requests~=2.31.0
 langchain_openai
 langchain
+langchain-core>=0.3.81 # not directly required, pinned by Snyk to avoid a vulnerability
+marshmallow>=3.26.2 # not directly required, pinned by Snyk to avoid a vulnerability
